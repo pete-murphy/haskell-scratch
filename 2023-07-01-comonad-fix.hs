@@ -58,7 +58,7 @@ shift m = do
     -- This never shows
     _ = Debug.traceShow (map (snd . snd) pairs)
     
-  Map.fromListWith average (f =<< pairs)
+  Map.fromList (f =<< pairs)
   where
     -- Compute all the changes to make
     f ((k, x), (k', y)) = do
@@ -70,8 +70,9 @@ shift m = do
 
 -- Using kfix from "Getting a Quick Fix on Comonads" talk
 allShifted :: forall k. Ord k => Store (Map k Double) (Map k Double)
-allShifted = Comonad.kfix (go <$> Store.store shift Map.empty)
+allShifted = Comonad.kfix (go <$> store)
   where
+    store = Store.store shift Map.empty
     go :: Map k Double -> Store (Map k Double) (Map k Double) -> Map k Double
     go shifts _
       | Map.null shifts = Map.empty
