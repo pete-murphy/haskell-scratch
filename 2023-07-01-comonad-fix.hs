@@ -42,32 +42,27 @@ allDeps = Comonad.extend Comonad.wfix (go <$> recipes)
 
 average :: Double -> Double -> Double
 average x y = (x + y) / 2
---  let
---    -- Easier to work with a list here, and 
---    -- we must sort by _position_ to detect collisions
-shift :: forall k. Ord k => ((k, Double), (k, Double)) -> Map k Double
-shift ((k, x), (k', y)) = do
-  let
-    xs = do
-      let diff = y - x
-      if diff < 1 then 
-        let z = average x y
-         in [(k, z - 0.6), (k', z + 0.6)]
-        else [(k, x)]
-  Map.fromList xs
 
-shiftStore :: forall k. Ord k => Store (Map k Double) (Map k Double)
-shiftStore = Store.store shift' Map.empty
+shift :: forall k. Ord k => Map k Double -> Map k Double
+shift m = do
+  let
+    -- Easier to work with a list here, and 
+    -- we must sort by _position_ to detect collisions
+    list = List.sortOn snd (Map.toList m)
+    pairs = zip list (tail list)
+    
+  Map.fromListWith average (f =<< pairs)
   where
-    shift' m = do
-      let
-        list = List.sortOn snd (Map.toList m)
-        pairs = zip list (tail list)
-      Map.unionsWith average (map shift pairs)
-   
+    -- Compute all the changes to make
+    f ((k, x), (k', y)) = do
+     let diff = y - x
+     if diff < 1 then 
+       let z = average x y
+        in [(k, z - 0.5), (k', z + 0.5)]
+       else [(k, x), (k', y)]
 
 allShifted :: forall k. Ord k => Store (Map k Double) (Map k Double)
-allShifted = Comonad.extend Comonad.wfix (go <$> shiftStore)
+allShifted = Comonad.extend Comonad.wfix (go <$> Store.store shift Map.empty)
   where
     go :: Map k Double -> Store (Map k Double) (Map k Double) -> Map k Double
     go shifts _
@@ -77,5 +72,6 @@ allShifted = Comonad.extend Comonad.wfix (go <$> shiftStore)
 
 main :: IO ()
 main = do
-  -- print (Store.peek (Set.fromList ["quiver"]) allDeps)
+  -- Currently results in: 
+  -- *** Exception: stack overflow
   print (Store.peek (Map.fromList [('a', 1), ('b', 2)]) allShifted)
