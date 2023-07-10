@@ -5,6 +5,7 @@ import Control.Comonad.Store (Store)
 import Data.Map (Map)
 -- import Data.Map.Monoidal (MonoidalMap)
 import Data.Set (Set)
+import Control.Comonad (Comonad)
 
 import qualified Control.Comonad as Comonad
 import qualified Control.Comonad.Store as Store
@@ -14,8 +15,11 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Control.Arrow (second)
+import Data.Function (fix)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
+
+import qualified Debug.Trace as Debug
 
 ingredientsOf :: String -> Set String
 ingredientsOf = \case
@@ -50,6 +54,9 @@ shift m = do
     -- we must sort by _position_ to detect collisions
     list = List.sortOn snd (Map.toList m)
     pairs = zip list (tail list)
+
+    -- This never shows
+    _ = Debug.traceShow (map (snd . snd) pairs)
     
   Map.fromListWith average (f =<< pairs)
   where
@@ -59,10 +66,11 @@ shift m = do
      if diff < 1 then 
        let z = average x y
         in [(k, z - 0.5), (k', z + 0.5)]
-       else [(k, x), (k', y)]
+       else []
 
+-- Using kfix from "Getting a Quick Fix on Comonads" talk
 allShifted :: forall k. Ord k => Store (Map k Double) (Map k Double)
-allShifted = Comonad.extend Comonad.wfix (go <$> Store.store shift Map.empty)
+allShifted = Comonad.kfix (go <$> Store.store shift Map.empty)
   where
     go :: Map k Double -> Store (Map k Double) (Map k Double) -> Map k Double
     go shifts _
@@ -73,5 +81,5 @@ allShifted = Comonad.extend Comonad.wfix (go <$> Store.store shift Map.empty)
 main :: IO ()
 main = do
   -- Currently results in: 
-  -- *** Exception: stack overflow
+  -- _|_ non-termination
   print (Store.peek (Map.fromList [('a', 1), ('b', 2)]) allShifted)
