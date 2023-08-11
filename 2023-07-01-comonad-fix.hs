@@ -2,15 +2,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import Control.Comonad.Store (Store)
-import Data.Map (Map)
+import Control.Comonad.Traced (Traced)
+import Data.Map.Strict (Map)
 -- import Data.Map.Monoidal (MonoidalMap)
 import Data.Set (Set)
 import Control.Comonad (Comonad)
 
 import qualified Control.Comonad as Comonad
 import qualified Control.Comonad.Store as Store
+import qualified Control.Comonad.Traced as Traced
 import qualified Data.List as List
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 -- import qualified Data.Map.Monoidal as Map
 import qualified Data.Set as Set
 
@@ -36,6 +38,16 @@ recipes = Store.store (foldMap ingredientsOf) mempty
 
 allDeps :: Store (Set String) (Set String)
 allDeps = Comonad.extend Comonad.wfix (go <$> recipes)
+  where
+    go :: Set String -> Store (Set String) (Set String) -> (Set String)
+    go deps _
+      | Set.null deps = mempty
+    go deps result = 
+      Debug.traceShow deps
+        (deps <> Store.peek deps result)
+
+allDeps' :: Store (Set String) (Set String)
+allDeps' = Comonad.kfix (go <$> recipes)
   where
     go :: Set String -> Store (Set String) (Set String) -> (Set String)
     go deps _
@@ -66,21 +78,38 @@ shift m = do
      if diff < 1 then 
        let z = average x y
         in [(k, z - 0.5), (k', z + 0.5)]
-       else []
+       else [(k, x), (k', y)]
 
--- Using kfix from "Getting a Quick Fix on Comonads" talk
 allShifted :: forall k. Ord k => Store (Map k Double) (Map k Double)
-allShifted = Comonad.kfix (go <$> store)
+allShifted = do
+  Comonad.extend Comonad.wfix (go <$> store)
   where
     store = Store.store shift Map.empty
     go :: Map k Double -> Store (Map k Double) (Map k Double) -> Map k Double
     go shifts _
       | Map.null shifts = Map.empty
-    go shifts result = shifts <> (Store.peek shifts result)
+    go shifts result = do
+      shifts <> (Store.peek shifts result)
+
+allShifted' :: forall k. Ord k => Traced (Map k Double) (Map k Double)
+allShifted' = do
+  Comonad.extend Comonad.wfix (go <$> traced)
+  where
+    traced :: Traced (Map k Double) (Map k Double)
+    traced = Traced.traced shift
+    go :: Map k Double -> Traced (Map k Double) (Map k Double) -> Map k Double
+    go shifts _
+      | Map.null shifts = Map.empty
+    go shifts result = do
+      -- Traced.runTraced result shifts 
+      shifts <> Traced.runTraced result shifts 
+
 
 
 main :: IO ()
 main = do
   -- Currently results in: 
   -- _|_ non-termination
-  print (Store.peek (Map.fromList [('a', 1), ('b', 2)]) allShifted)
+  -- print (Traced.runTraced  allShifted' (Map.fromList [('a', 1), ('b', 3), ('c', 5)]))
+
+  print (Store.peek (Set.fromList ["quiver"]) allDeps)
