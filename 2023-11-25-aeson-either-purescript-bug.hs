@@ -6,32 +6,33 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Char8 as ByteString.Char8
 import qualified Data.ByteString as ByteString
+import qualified Prelude
 
 import Data.Aeson (GToJSON, GToJSON', Encoding, Value, One, Zero, ToJSON)
--- import GHC.Generics (Generic, Generically, Rep, (:+:))
-import GHC.Generics (Generic, Rep, (:+:))
-import Generic.Data (Generically)
+import GHC.Generics (Generic, Rep)
+import Prelude hiding (Either(..))
 
-data MyEither e a = MyLeft e | MyRight a
+data Either e a = Left e | Right a
   deriving Generic
   deriving ToJSON
 
-newtype Foo = Foo { fooEither :: Either () String }
+newtype Foo = Foo { fooEither :: Prelude.Either () String }
   deriving Generic
 
-newtype Foo' = Foo' { fooEither' :: MyEither () String }
+newtype Foo' = Foo' { fooEither' :: Either () String }
   deriving Generic
 
 main :: IO ()
 main = do
+  printJSON (Prelude.Right "bar" :: Prelude.Either () String)
   printJSON (Right "bar" :: Either () String)
-  printJSON (Foo (Right "baz"))
-  printJSON (Foo' (MyRight "baz"))
+  printJSON (Foo (Prelude.Right "baz"))
+  printJSON (Foo' (Right "baz"))
   -- Weird, this prints:
   -- {"tag":"Right","value":"bar"}
+  -- {"tag":"Right","value":"bar"}
   -- {"fooEither":{"Right":"baz"},"tag":"Foo"}
-  -- {"fooEither'":{"contents":"baz","tag":"MyRight"},"tag":"Foo'"}
-
+  -- {"fooEither'":{"contents":"baz","tag":"Right"},"tag":"Foo'"}
 
   where
     printJSON
